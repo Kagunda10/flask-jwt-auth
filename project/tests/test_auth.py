@@ -7,17 +7,16 @@ from project.server.models import User, BlacklistToken
 from project.tests.base import BaseTestCase
 
 
-
+def register_user(self, email, password):
+    return self.client.post(
+        '/auth/register',
+        data=json.dumps(dict(
+            email=email,
+            password=password
+        )),
+        content_type='application/json',
+    )
 class TestAuthBlueprint(BaseTestCase):
-    def register_user(self, email, password):
-        return self.client.post(
-            '/auth/register',
-            data=json.dumps(dict(
-                email=email,
-                password=password
-            )),
-            content_type='application/json',
-        )
 
     def test_registration(self):
         """ Test for user registration """
@@ -258,6 +257,24 @@ class TestAuthBlueprint(BaseTestCase):
         self.assertTrue(isinstance(auth_token, bytes))
         self.assertTrue(User.decode_auth_token(
             auth_token.decode("utf-8") ) == 1)
+        
+    def test_user_status_malformed_bearer_token(self):
+        """ Test for user status with malformed bearer token"""
+        with self.client:
+            resp_register = register_user(self, 'joe@gmail.com', '123456')
+            response = self.client.get(
+                '/auth/status',
+                headers=dict(
+                    Authorization='Bearer' + json.loads(
+                        resp_register.data.decode()
+                    )['auth_token']
+                )
+            )
+            data = json.loads(response.data.decode())
+            self.assertTrue(data['status'] == 'fail')
+            self.assertTrue(data['message'] == 'Bearer token malformed.')
+            self.assertEqual(response.status_code, 401)
+
 
 
 
